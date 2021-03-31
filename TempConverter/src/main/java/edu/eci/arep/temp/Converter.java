@@ -6,8 +6,20 @@ import com.google.gson.GsonBuilder;
 import spark.Request;
 import spark.Response;
 
+/**
+ * Clase que nos permite realizar conversiones de temperatura, por ahora solo están disponibles las
+ * conversiones de farenheit a celsius y viceversa
+ */
 public class Converter {
 
+    /**
+     * Convierte grados celsius a farenheit, el valor se obtiene por medio del parámetro "value"
+     * obtenido de la url de la petición get realizada
+     * 
+     * @param req La petición
+     * @param res La respuesta
+     * @return Una cadena con la respuesta en formato JSON
+     */
     public static String celsius2Farenheit(Request req, Response res) {
         printRequest(req);
         double celsiusDegrees, farenheitDegrees;
@@ -26,6 +38,14 @@ public class Converter {
         return gson.toJson(responseObj);
     }
 
+    /**
+     * Convierte grados farenheit a celsius, el valor se obtiene por medio del parámetro "value"
+     * obtenido de la url de la petición get realizada
+     * 
+     * @param req La petición
+     * @param res La respuesta
+     * @return Una cadena con la respuesta en formato JSON
+     */
     public static String farenheit2Celsius(Request req, Response res) {
         printRequest(req);
         double celsiusDegrees, farenheitDegrees;
@@ -44,6 +64,11 @@ public class Converter {
         return gson.toJson(responseObj);
     }
 
+    /**
+     * Imprime información de la solicitud realizada, es una herramienta de DEBUG
+     * 
+     * @param req La solicitud realizada
+     */
     private static void printRequest(Request req) {
         System.out.println("\n\n---------------------------------------------------");
         System.out.println("---------------------------------------------------\n");
@@ -53,6 +78,10 @@ public class Converter {
     }
 }
 
+
+/**
+ * Clase de datos para organizar la respuesta que se creará en formato JSON
+ */
 class ResponseData {
     private double farenheitDegrees;
     private double celsiusDegrees;

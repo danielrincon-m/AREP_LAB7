@@ -6,7 +6,6 @@ import edu.eci.arep.temp.Converter;
 
 /**
  * Hello world!
- *
  */
 public class App {
     public static void main(String[] args) {
