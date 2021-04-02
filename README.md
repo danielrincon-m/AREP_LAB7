@@ -1,47 +1,86 @@
-# Aplicación Web Segura y Distribuída
+# Aplicación con Amazon Gateway, EC2 y S3
 
 [![danielrincon-m](https://circleci.com/gh/danielrincon-m/AREP_LAB4.svg?style=svg)](https://app.circleci.com/pipelines/github/danielrincon-m/AREP_LAB4)
 <!-- [![Heroku](img/heroku_long.png)](https://nanospring.herokuapp.com/nspapp/register) -->
 
-## Descripción 🔑
+## Descripción ☁️
 
-En este laboratorio desarrollaremos un proyecto web simple, en el cual los dos módulos que lo componen estarán corriendo en máquinas virtuales independientes en Amazon Web Services, ambas máquinas tendrán corriendo servidores de Spark Java, que estarán escuchando peticiones públicas. Los componentes del sistema se enumeran a continuación:
+En este laboratorio será desarrollado un prototipo de aplicación web basada en microservicios, para la cual utilizaremos la nube de Amazon. El proyecto estará compuesto por una página web pública corriendo en un contenedor Amazon S3 con la cual podrá interactuar el usuario, un servicio en Spark montado sobre una máquina virtual Amazon EC2, y un servicio de API Gateway, el cual será el puente entre los otros dos componentes.
 
-- Cliente, en este caso, nuestra máquina local.
-- Un servicio llamado LoginService, este servicio publica un formulario accesible a través de un navegador Web en donde se deberán poner credenciales válidas para acceder al otro servicio.
-- Un servicio llamado TimeService, que si es solicitado con las credenciales correctas, nos retornará la hora del servidor.
+La arquitectura de los servicios se muestra a continuación:
 
-La arquitectura de los servicios se muestra a continuación, en donde OtherService representa nuestro TimeService:
-
-![Arquitectura](img/arquitectura.jpg)
+![Arquitectura](img/arquitectura.png)
 
 
 ## Implementación 🛡️
 
-La arquitectura de la aplicación se basa en comunicaciones cifradas vía HTTPS, para lograr esto, ambos servicios presentados tienen sus propios certificados de tipo "self-signed", y el servicio de Login cuenta con autorización para recibir datos de manera segura por parte del servicio de Time, esto se logró agregando el certificado de este último, a la lista de certificados válidos del servicio Login.
+La arquitectura de la aplicación se basa en la abstracción de una API por medio del API Gateway de Amazon, y la presentación de una interfaz amigable con el usuario por medio de una página web.
 
 Vamos a realizar un breve recorrido por cada uno de los servicios.
 
-### TimeService
+### Temperature Service
 
-Se trata de un servicio web simple que responde a una sola petición GET en la ruta '/time', el servicio espera dos parámetros, un usuario y una contraseña, por ahora los datos válidos están incrustados en el código, y deben ser enviados al servidor siempre que se desee realizar una petición, sin embargo una gran mejora consistiría en crear una sesión para los usuarios autenticados y a través de esta sesión, responder a la respuesta sin requerir los demás datos, además de almacenar las credenciales en un archivo o base de datos.
+Se trata de un servicio web simple que responde a una sola petición GET en la ruta */convert/farenheit/celsius*, el servicio espera un parámetro: la temperatura que se desea convertir, el programa valida que el dato ingresado sea válido, y que se haya ingresado un dato, de lo contrario retorna mensajes de error.
 
-La contraseña que espera el LoginService debe estar codificada bajo el algoritmo de hash SHA-256, esta codificación es responsabilidad de la capa que llama al servicio. El servicio web está construido sobre [Spark Java](#herramientas-utilizadas-%EF%B8%8F), fué empaquetado y subido a la máquina virtual de AWS para su ejecución.
+El servicio web está construido sobre [Spark Java](#herramientas-utilizadas-%EF%B8%8F), fué empaquetado y subido a la máquina virtual de AWS para su ejecución.
 
-### LoginService
+### API Gateway
 
-Este servicio presenta un formulario web, con campos para diligenciar un usuario y una contraseña, al diligenciar el formulario y enviarlo, se realiza una petición POST con los datos diligenciados, una vez llegan al servidor, la contraseña es cifrada bajo un algoritmo SHA-256, posterior a esto se envía una petición GET al servicio de Time con estos datos y se renderiza la respuesta del servicio en la vista del usuario.
+Este servicio abstrae la API del [Temperature Service](#Temperature-Service), creando una interfaz para que otras aplicaciones puedan acceder al servicio, quitando el riesgo de que tengan un acceso mas allá del que se espera al servidor del servicio.
 
-## Video de demostración
+### Web Service
 
-Se realizó un video demostrando y explicando el funcionamiento de todo el sistema, este video puede ser encontrado [AQUÍ](Demonstration.mp4).
+Se trata de una aplicación web amigable con el usuario, la cual nos presenta un formulario solicitando el valor de temperatura que deseamos convertir, en la misma ventana será presentada la respuesta una vez enviemos nuestra solicitud.
+
+## Reporte de pruebas ⭕
+
+El proyecto fué probado de dos maneras, las cuales se podrán ver a continuación:
+
+### Pruebas unitarias
+
+Se utilizó el framework [REST Assured](#herramientas-utilizadas-%EF%B8%8F) para realizar pruebas sobre la API REST desarrollada, se comprobó que las peticiones estuviesen siendo procesadas y que las respuestas de las conversiones fueran correctas, a continuación, podremos ver el código fuente de las pruebas:
+
+``` Java
+@Test
+public void valuesTest() {
+    HashMap<Float, Float> values = new HashMap<>();
+    values.put(0f, -17.7778f);
+    values.put(5f, -15f);
+    values.put(8f, -13.3333f);
+    values.put(20f, -6.66667f);
+    values.put(55f, 12.7778f);
+    values.put(78.152f, 25.64f);
+    values.put(158f, 70f);
+    values.put(2548.8556f, 1398.25311111f);
+
+    values.forEach((key, value) -> {
+        JsonConfig jsonConfig = JsonConfig.jsonConfig()
+                .numberReturnType(JsonPathConfig.NumberReturnType.BIG_DECIMAL);
+
+        given().config(RestAssured.config().jsonConfig(jsonConfig)).port(5000)
+                .param("value", key).when().get("/convert/farenheit/celsius").then()
+                .body("farenheitDegrees",
+                        closeTo(BigDecimal.valueOf(key), BigDecimal.valueOf(0.01f)))
+                .body("celsiusDegrees",
+                        closeTo(BigDecimal.valueOf(value), BigDecimal.valueOf(0.01f)));
+    });
+}
+```
+
+### Pruebas de funcionamiento
+
+Las pruebas de funcionamiento se realizaron con todo el sistema montado, probando diferentes valores, tanto válidos como no válidos, se realizaron de manera similar al estilo mostrado en el [Video de Demostración](#video-de-demostración-).
+
+## Video de demostración 📹
+
+Se realizó un video demostrando y explicando el funcionamiento de todo el sistema, este video puede ser encontrado [AQUÍ](demostracion.mp4).
 
 ## Descarga del proyecto ⬇️
 
 Clone el proyecto utilizando el siguiente comando:
 
 ```
-git clone https://github.com/danielrincon-m/AREP_LAB6.git
+git clone https://github.com/danielrincon-m/AREP_LAB7.git
 ```
 
 ## Correr las pruebas unitarias 🧪
@@ -53,8 +92,7 @@ la [página oficial.][mvnLink]
 
 ### Ejecución de pruebas
 
-Las pruebas pueden ser ejecutadas desde la sección de pruebas de su IDE o si tiene maven puede navegar a la carpeta
-principal de cada uno de los dos proyectos internos y ejecutar el comando
+Las pruebas pueden ser ejecutadas desde la sección de pruebas de su IDE o si tiene maven puede navegar a la carpeta principal de TempConverter y ejecutar el comando
 
 ```
 mvn test
@@ -62,9 +100,9 @@ mvn test
 
 ## Documentación del código fuente 🌎
 
-La documentación de los proyectos puede ser encontrada en las carpetas [LoginService/docs](LoginService/docs) y [TimeService/docs](TimeService/docs).
+La documentación del proyecto puede ser encontrada en la carpeta [TempConverter/docs](TempConverter/docs).
 
-También puede ser generada con Maven, clonando el proyecto y ejecutando el siguiente comando en cada una de las carpetas:
+También puede ser generada con Maven, clonando el proyecto y ejecutando el siguiente comando en la carpeta TempConverter:
 
 ```
 mvn javadoc:javadoc
@@ -82,6 +120,7 @@ Este laboratorio no cuenta con documento de diseño.
 * [GitHub](https://github.com/) - Repositorio de código
 * [Spark](https://sparkjava.com/) - Framework web
 * [AWS](https://aws.amazon.com/es/) - Despliegue en la nube
+* [REST Assured](https://rest-assured.io/) - Herramienta de pruebas para el API REST
 
 ## Autor 🧔
 
